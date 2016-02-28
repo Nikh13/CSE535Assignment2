@@ -2,19 +2,21 @@ package cse535.mobilecomputing.assignment2;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -23,29 +25,35 @@ import db.DatabaseHelper;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static String tableName = null;
+    private String tableName = null;
     private RelativeLayout inputLayout;
     private LinearLayout graphLayout;
     private EditText nameEditText;
     private EditText ageEditText;
     private EditText IDEditText;
-    private EditText sexEditText;
+    private RadioButton maleRadio;
+    private RadioButton femaleRadio;
+    RadioGroup sexRadioGroup;
     private Button stopButton;
     private Button runButton;
     private Button submitButton;
     private static DatabaseHelper dbHelper;
     private GraphView xGraph;
-    private GraphView yGraph;
-    private GraphView zGraph;
+//    private GraphView yGraph;
+//    private GraphView zGraph;
 
-    private float[] xValues = new float[9];
-    private float[] yValues = new float[9];
-    private float[] zValues = new float[9];
-    private float[] tsValues = new float[9];
+    List<float[]> valueList;
+    List<float[]> emptyValueList;
+
+    private float[] xValues = new float[10];
+    private float[] yValues = new float[10];
+    private float[] zValues = new float[10];
+    private float[] tsValues = new float[10];
 
     TimerTask timerTask;
     Timer timer;
     boolean running = false;
+
 
 
     @Override
@@ -57,24 +65,29 @@ public class MainActivity extends AppCompatActivity {
         nameEditText = (EditText) findViewById(R.id.nameEditText);
         IDEditText = (EditText) findViewById(R.id.idEditText);
         ageEditText = (EditText) findViewById(R.id.ageEditText);
-        sexEditText = (EditText) findViewById(R.id.sexEditText);
+        sexRadioGroup = (RadioGroup) findViewById(R.id.sex_radio_group);
+        maleRadio = (RadioButton) findViewById(R.id.male_radio);
+        femaleRadio = (RadioButton) findViewById(R.id.female_radio);
         stopButton = (Button) findViewById(R.id.stop_button);
         runButton = (Button) findViewById(R.id.run_button);
         submitButton = (Button) findViewById(R.id.submitInputBtn);
         graphLayout.setVisibility(View.GONE);
         inputLayout.setVisibility(View.VISIBLE);
 
-        xGraph = new GraphView(getApplicationContext(), new float[0], "X axis", null, null, GraphView.LINE);
-        yGraph = new GraphView(getApplicationContext(), new float[0], "Y axis", null, null, GraphView.LINE);
-        zGraph = new GraphView(getApplicationContext(), new float[0], "Z axis", null, null, GraphView.LINE);
+        emptyValueList = new ArrayList<float[]>();
+        emptyValueList.add(new float[0]);
 
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,3f);
+        xGraph = new GraphView(getApplicationContext(), emptyValueList, "X axis", null, null, GraphView.LINE);
+//        yGraph = new GraphView(getApplicationContext(), new float[0], "Y axis", null, null, GraphView.LINE);
+//        zGraph = new GraphView(getApplicationContext(), new float[0], "Z axis", null, null, GraphView.LINE);
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 9f);
         xGraph.setLayoutParams(params);
-        yGraph.setLayoutParams(params);
-        zGraph.setLayoutParams(params);
+//        yGraph.setLayoutParams(params);
+//        zGraph.setLayoutParams(params);
         graphLayout.addView(xGraph);
-        graphLayout.addView(yGraph);
-        graphLayout.addView(zGraph);
+//        graphLayout.addView(yGraph);
+//        graphLayout.addView(zGraph);
 
         submitButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -82,19 +95,30 @@ public class MainActivity extends AppCompatActivity {
                 String name = nameEditText.getText().toString();
                 String ID = IDEditText.getText().toString();
                 String age = ageEditText.getText().toString();
-                String sex = sexEditText.getText().toString();
+                String sex = "";
+                if(sexRadioGroup.getCheckedRadioButtonId()>-1){
+                    switch(sexRadioGroup.getCheckedRadioButtonId()){
+                        case R.id.male_radio:
+                            sex = maleRadio.getText().toString();
+                            break;
+                        case R.id.female_radio:
+                            sex = femaleRadio.getText().toString();
+                            break;
+                        default:
+                            break;
+                    }
+                }
                 if (!name.equals("") & !ID.equals("") & !sex.equals("") & !age.equals("")) {
                     tableName = name + "_" + ID + "_" + age + "_" + sex;
-                    dbHelper = DatabaseHelper.getInstance(getApplicationContext());
                     inputLayout.setVisibility(View.GONE);
                     graphLayout.setVisibility(View.VISIBLE);
                     startService(new Intent(MainActivity.this, AccelerometerService.class));
+                    SharedPreferences prefs = getApplicationContext().getSharedPreferences("application_settings", 0);
+                    SharedPreferences.Editor editor = prefs.edit();
+                    editor.putString("table_name",tableName);
+                    editor.commit();
+                    dbHelper = DatabaseHelper.getInstance(getApplicationContext());
                     Toast.makeText(getApplicationContext(), "Service Started", Toast.LENGTH_SHORT);
-                    View view = MainActivity.this.getCurrentFocus();
-                    if (view != null) {
-                        InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
-                        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
-                    }
                 } else
                     Toast.makeText(getApplicationContext(), "Please fill out all fields", Toast.LENGTH_SHORT);
 
@@ -115,6 +139,12 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public static String getStoredTableName(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("application_settings", 0);
+        String tn = prefs.getString("table_name", null);
+        return tn;
+    }
+
     final Runnable refreshGraphRunnable = new Runnable() {
         @Override
         public void run() {
@@ -123,7 +153,8 @@ public class MainActivity extends AppCompatActivity {
         }
     };
     final Handler mHandler = new Handler();
-    private void initializeTimerTask(){
+
+    private void initializeTimerTask() {
         timerTask = new TimerTask() {
             @Override
             public void run() {
@@ -132,20 +163,20 @@ public class MainActivity extends AppCompatActivity {
         };
     }
 
-    private void startTimer(){
-        if(running)
+    private void startTimer() {
+        if (running)
             return;
         running = true;
         timer = new Timer();
         initializeTimerTask();
-        timer.schedule(timerTask,0,1000);
+        timer.schedule(timerTask, 0, 1000);
     }
 
-    private void stopTimer(){
-        if(!running)
+    private void stopTimer() {
+        if (!running)
             return;
         running = false;
-        if(timer!=null){
+        if (timer != null) {
             timer.cancel();
             timer = null;
         }
@@ -153,34 +184,40 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void refreshGraphValues() {
-        xGraph.setValues(xValues);
-        yGraph.setValues(yValues);
-        zGraph.setValues(zValues);
+        xGraph.setValueList(valueList);
+//        yGraph.setValueList(yValues);
+//        zGraph.setValueList(zValues);
         xGraph.invalidate();
-        yGraph.invalidate();
-        zGraph.invalidate();
+//        yGraph.invalidate();
+//        zGraph.invalidate();
     }
 
     private void clearGraph() {
-        xGraph.setValues(new float[0]);
-        yGraph.setValues(new float[0]);
-        zGraph.setValues(new float[0]);
+        xGraph.setValueList(emptyValueList);
+//        yGraph.setValueList(new float[0]);
+//        zGraph.setValueList(new float[0]);
         xGraph.invalidate();
-        yGraph.invalidate();
-        zGraph.invalidate();
+//        yGraph.invalidate();
+//        zGraph.invalidate();
     }
 
     private void extractMostRecentAxisValues() {
         List<Record> recordList = getMostRecentRecords();
+        Log.i("MainActivity", "list: "+recordList);
         if (recordList != null & recordList.size() == 10) {
-            Log.i("MainActivity","New Set");
+            Log.i("MainActivity", "New Set");
             int i = 0;
             for (Record r : recordList) {
-                Log.i("MainActivity","Record values: "+r.timestamp+" "+r.xVal+" "+r.yVal+" "+r.zVal);
+                Log.i("MainActivity", "Record values: " + r.timestamp + " " + r.xVal + " " + r.yVal + " " + r.zVal);
                 xValues[i] = r.xVal;
                 yValues[i] = r.yVal;
                 zValues[i] = r.zVal;
+                i++;
             }
+            valueList = new ArrayList<float[]>();
+            valueList.add(xValues);
+            valueList.add(yValues);
+            valueList.add(zValues);
         }
     }
 
@@ -189,6 +226,7 @@ public class MainActivity extends AppCompatActivity {
         if (dbHelper != null) {
             recordList = dbHelper.getMostRecentRecords();
         }
+        Log.i("MainActivity", "db: "+dbHelper+" list: "+recordList);
         return recordList;
     }
 
@@ -208,7 +246,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
-        Log.i("MainActivity", "Resume Values: "+tableName+" "+dbHelper);
+        tableName = getStoredTableName(getApplicationContext());
+        dbHelper = DatabaseHelper.getInstance(getApplicationContext());
+        Log.i("MainActivity", "Resume Values: " + tableName + " " + dbHelper);
         if (tableName != null & dbHelper != null) {
             inputLayout.setVisibility(View.GONE);
             graphLayout.setVisibility(View.VISIBLE);

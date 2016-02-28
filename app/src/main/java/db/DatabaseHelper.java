@@ -21,13 +21,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static DatabaseHelper sInstance;
     private static final int DATABASE_VERSION = 1;
-    String tableName = null;
+    static String tableName = null;
 
     synchronized public static DatabaseHelper getInstance(Context context) {
 
         // Use the application context, which will ensure that you
         // don't accidentally leak an Activity's context.
         // See this article for more information: http://bit.ly/6LRzfx
+        tableName = MainActivity.getStoredTableName(context);
+        if(tableName==null)
+            return null;
         if (sInstance == null) {
             sInstance = new DatabaseHelper(context.getApplicationContext());
         }
@@ -36,8 +39,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 
     public DatabaseHelper(Context context) {
-        super(context, MainActivity.tableName, null, DATABASE_VERSION);
-        tableName = MainActivity.tableName;
+        super(context, tableName, null, DATABASE_VERSION);
     }
 
     @Override
