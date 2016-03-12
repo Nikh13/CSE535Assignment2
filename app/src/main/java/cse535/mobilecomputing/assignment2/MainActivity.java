@@ -3,6 +3,8 @@ package cse535.mobilecomputing.assignment2;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.AsyncTask;
+import android.os.Environment;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -16,10 +18,28 @@ import android.widget.RadioGroup;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import db.DatabaseHelper;
 
@@ -28,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private String tableName = null;
     private RelativeLayout inputLayout;
     private LinearLayout graphLayout;
+    private RelativeLayout serverLayout;
     private EditText nameEditText;
     private EditText ageEditText;
     private EditText IDEditText;
@@ -37,10 +58,10 @@ public class MainActivity extends AppCompatActivity {
     private Button stopButton;
     private Button runButton;
     private Button submitButton;
+    private Button uploadButton;
     private static DatabaseHelper dbHelper;
     private GraphView xGraph;
-//    private GraphView yGraph;
-//    private GraphView zGraph;
+    private UploadDatabase uploadDatabaseTask;
 
     List<float[]> valueList;
     List<float[]> emptyValueList;
@@ -48,12 +69,12 @@ public class MainActivity extends AppCompatActivity {
     private float[] xValues = new float[10];
     private float[] yValues = new float[10];
     private float[] zValues = new float[10];
-    private float[] tsValues = new float[10];
 
     TimerTask timerTask;
     Timer timer;
     boolean running = false;
 
+    private static final String sURL = "https://impact.asu.edu/Appenstance/UploadToServerGPS.php";
 
 
     @Override
@@ -61,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         inputLayout = (RelativeLayout) findViewById(R.id.input_layout);
+        serverLayout = (RelativeLayout) findViewById(R.id.server_layout);
         graphLayout = (LinearLayout) findViewById(R.id.graph_layout);
         nameEditText = (EditText) findViewById(R.id.nameEditText);
         IDEditText = (EditText) findViewById(R.id.idEditText);
@@ -71,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
         stopButton = (Button) findViewById(R.id.stop_button);
         runButton = (Button) findViewById(R.id.run_button);
         submitButton = (Button) findViewById(R.id.submitInputBtn);
+        uploadButton = (Button) findViewById(R.id.upload_btn);
         graphLayout.setVisibility(View.GONE);
         inputLayout.setVisibility(View.VISIBLE);
 
@@ -78,16 +101,10 @@ public class MainActivity extends AppCompatActivity {
         emptyValueList.add(new float[0]);
 
         xGraph = new GraphView(getApplicationContext(), emptyValueList, "X axis", null, null, GraphView.LINE);
-//        yGraph = new GraphView(getApplicationContext(), new float[0], "Y axis", null, null, GraphView.LINE);
-//        zGraph = new GraphView(getApplicationContext(), new float[0], "Z axis", null, null, GraphView.LINE);
 
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 9f);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 8f);
         xGraph.setLayoutParams(params);
-//        yGraph.setLayoutParams(params);
-//        zGraph.setLayoutParams(params);
         graphLayout.addView(xGraph);
-//        graphLayout.addView(yGraph);
-//        graphLayout.addView(zGraph);
 
         submitButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -96,8 +113,8 @@ public class MainActivity extends AppCompatActivity {
                 String ID = IDEditText.getText().toString();
                 String age = ageEditText.getText().toString();
                 String sex = "";
-                if(sexRadioGroup.getCheckedRadioButtonId()>-1){
-                    switch(sexRadioGroup.getCheckedRadioButtonId()){
+                if (sexRadioGroup.getCheckedRadioButtonId() > -1) {
+                    switch (sexRadioGroup.getCheckedRadioButtonId()) {
                         case R.id.male_radio:
                             sex = maleRadio.getText().toString();
                             break;
@@ -115,9 +132,10 @@ public class MainActivity extends AppCompatActivity {
                     startService(new Intent(MainActivity.this, AccelerometerService.class));
                     SharedPreferences prefs = getApplicationContext().getSharedPreferences("application_settings", 0);
                     SharedPreferences.Editor editor = prefs.edit();
-                    editor.putString("table_name",tableName);
+                    editor.putString("table_name", tableName);
                     editor.commit();
                     dbHelper = DatabaseHelper.getInstance(getApplicationContext());
+                    serverLayout.setVisibility(View.VISIBLE);
                     Toast.makeText(getApplicationContext(), "Service Started", Toast.LENGTH_SHORT);
                 } else
                     Toast.makeText(getApplicationContext(), "Please fill out all fields", Toast.LENGTH_SHORT);
@@ -135,6 +153,13 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 stopTimer();
                 clearGraph();
+            }
+        });
+        uploadButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                UploadDatabase task = new UploadDatabase();
+                task.execute();
             }
         });
     }
@@ -185,20 +210,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void refreshGraphValues() {
         xGraph.setValueList(valueList);
-//        yGraph.setValueList(yValues);
-//        zGraph.setValueList(zValues);
         xGraph.invalidate();
-//        yGraph.invalidate();
-//        zGraph.invalidate();
     }
 
     private void clearGraph() {
         xGraph.setValueList(emptyValueList);
-//        yGraph.setValueList(new float[0]);
-//        zGraph.setValueList(new float[0]);
         xGraph.invalidate();
-//        yGraph.invalidate();
-//        zGraph.invalidate();
     }
 
     private void extractMostRecentAxisValues() {
@@ -252,8 +269,141 @@ public class MainActivity extends AppCompatActivity {
         if (tableName != null & dbHelper != null) {
             inputLayout.setVisibility(View.GONE);
             graphLayout.setVisibility(View.VISIBLE);
-            startTimer();
+            serverLayout.setVisibility(View.VISIBLE);
             startService(new Intent(this, AccelerometerService.class));
+        }
+    }
+
+    private class UploadDatabase extends AsyncTask<Void, Void, String>{
+
+        Context context = MainActivity.this;
+        File db = context.getDatabasePath(getStoredTableName(context));
+        String fileName = db.getPath();
+        InputStream input = null;
+        DataOutputStream output = null;
+        HttpsURLConnection connection = null;
+        String lineEnd = "\r\n";
+        String twoHyphens = "--";
+        String boundary = "*****";
+        int bytesRead, bytesAvailable, bufferSize;
+        byte[] buffer;
+        int maxBufferSize = 1 * 1024 * 1024;
+        String response = null;
+
+        @Override
+        protected String doInBackground(Void... params) {
+
+            TrustManager[] trustAllCerts = new TrustManager[] { new X509TrustManager() {
+                public X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+
+                @Override
+                public void checkClientTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
+                    // Not implemented
+                }
+
+                @Override
+                public void checkServerTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
+                    // Not implemented
+                }
+            } };
+
+            try {
+                SSLContext sc = SSLContext.getInstance("TLS");
+
+                sc.init(null, trustAllCerts, new java.security.SecureRandom());
+
+                HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+            } catch (KeyManagementException e) {
+                e.printStackTrace();
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            }
+            try {
+                URL url = new URL(sURL);
+                connection = (HttpsURLConnection) url.openConnection();
+                connection.setDoInput(true); // Allow Inputs
+                connection.setDoOutput(true); // Allow Outputs
+                connection.setUseCaches(false); // Don't use a Cached Copy
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Connection", "Keep-Alive");
+                connection.setRequestProperty("ENCTYPE", "multipart/form-data");
+                connection.setRequestProperty("Content-Type", "multipart/form-data;boundary=" + boundary);
+                connection.setRequestProperty("uploaded_file", fileName);
+
+//                // this will be useful to display download percentage
+//                // might be -1: server did not report the length
+
+                input = new FileInputStream(db);
+                output = new DataOutputStream(connection.getOutputStream());
+
+                output.writeBytes(twoHyphens + boundary + lineEnd);
+                output.writeBytes("Content-Disposition: form-data; name=uploaded_file;" + "filename="
+                        + fileName + " " + lineEnd);
+                Log.i("UploadDB","Upload Filename: "+fileName);
+                output.writeBytes(lineEnd);
+
+                // create a buffer of  maximum size
+                bytesAvailable = input.available();
+
+                bufferSize = Math.min(bytesAvailable, maxBufferSize);
+                buffer = new byte[bufferSize];
+
+                // read file and write it into form...
+                bytesRead = input.read(buffer, 0, bufferSize);
+
+                while (bytesRead > 0) {
+
+                    output.write(buffer, 0, bufferSize);
+                    bytesAvailable = input.available();
+                    bufferSize = Math.min(bytesAvailable, maxBufferSize);
+                    bytesRead = input.read(buffer, 0, bufferSize);
+
+                }
+
+                // send multipart form data necesssary after file data...
+                output.writeBytes(lineEnd);
+                output.writeBytes(twoHyphens + boundary + twoHyphens + lineEnd);
+
+                //expect HTTP 200 OK, so we don't mistakenly save error report
+                // instead of the file
+                if (connection.getResponseCode() != HttpsURLConnection.HTTP_OK) {
+                    return "Server returned HTTP " + connection.getResponseCode()
+                            + " " + connection.getResponseMessage();
+                }
+
+                response = connection.getResponseMessage();
+                Log.i("UploadDb","response: "+response);
+
+                //close the streams //
+                input.close();
+                output.flush();
+                output.close();
+
+            } catch (MalformedURLException ex) {
+
+
+                ex.printStackTrace();
+
+
+                Log.e("Upload file to server", "error: " + ex.getMessage(), ex);
+            } catch (Exception e) {
+
+
+                e.printStackTrace();
+
+
+                Log.e("Upload Exception", "Exception : " + e.getMessage(), e);
+            }
+
+            return response;
+        }
+
+        @Override
+        protected void onPostExecute(String result) {
+                Log.i("UploadDb","Upload message: "+result);
+                Toast.makeText(context,"Upload Result", Toast.LENGTH_SHORT).show();
         }
     }
 
