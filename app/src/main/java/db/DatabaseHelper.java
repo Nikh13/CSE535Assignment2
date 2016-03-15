@@ -21,7 +21,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static DatabaseHelper sInstance;
     private static final int DATABASE_VERSION = 1;
-    public static final String DATABASE_NAME = "g34_1.db";
+    public static String DATABASE_NAME = null;
     static String tableName = null;
 
     synchronized public static DatabaseHelper getInstance(Context context) {
@@ -30,8 +30,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         // don't accidentally leak an Activity's context.
         // See this article for more information: http://bit.ly/6LRzfx
         tableName = MainActivity.getStoredTableName(context);
-        if(tableName==null)
+        if (tableName == null)
             return null;
+        else
+            DATABASE_NAME = tableName;
         if (sInstance == null) {
             sInstance = new DatabaseHelper(context.getApplicationContext());
         }

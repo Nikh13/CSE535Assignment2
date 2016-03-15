@@ -59,7 +59,6 @@ public class DownloadDatabaseActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main2);
-        dbHelper = DownloadDatabaseHelper.getInstance(DownloadDatabaseActivity.this);
         downloadDatabaseButton = (Button)findViewById(R.id.download_btn);
 
         emptyValueList = new ArrayList<float[]>();
@@ -96,7 +95,7 @@ public class DownloadDatabaseActivity extends AppCompatActivity {
     private void extractMostRecentAxisValues() {
         List<Record> recordList = getMostRecentRecords();
         Log.i("MainActivity", "list: " + recordList);
-        if (recordList != null & recordList.size() == 10) {
+        if (recordList != null && recordList.size() == 10) {
             Log.i("DownloadActivity", "New Set");
             int i = 0;
             for (Record r : recordList) {
@@ -213,6 +212,7 @@ public class DownloadDatabaseActivity extends AppCompatActivity {
 
             if(!err){
                 Log.i("DownloadDb", "No error");
+                dbHelper = DownloadDatabaseHelper.getInstance(DownloadDatabaseActivity.this);
                 extractMostRecentAxisValues();
                 refreshGraphValues();
             }

@@ -7,6 +7,7 @@ import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.os.Environment;
+import android.util.Log;
 
 import java.io.File;
 import java.sql.Timestamp;
@@ -24,7 +25,7 @@ public class DownloadDatabaseHelper extends SQLiteOpenHelper {
 
     private static DownloadDatabaseHelper sInstance;
     private static final int DATABASE_VERSION = 1;
-    private static final String DATABASE_NAME = DatabaseHelper.DATABASE_NAME;
+    private static String DATABASE_NAME = DatabaseHelper.DATABASE_NAME;
     public final static String DATABASE_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getPath();
     private static SQLiteDatabase sqliteDataBase;
     static String tableName = null;
@@ -35,8 +36,14 @@ public class DownloadDatabaseHelper extends SQLiteOpenHelper {
         // don't accidentally leak an Activity's context.
         // See this article for more information: http://bit.ly/6LRzfx
         tableName = MainActivity.getStoredTableName(context);
+        Log.i("DownloadDBHelper","Download table name: "+tableName);
+        if(tableName==null)
+            return null;
+        else
+            DATABASE_NAME =tableName;
         boolean dbExists = checkDataBase();
-        if(!dbExists || tableName==null)
+        Log.i("DownloadDBHelper","Database Exists: "+dbExists);
+        if(!dbExists)
             return null;
         if (sInstance == null) {
             sInstance = new DownloadDatabaseHelper(context.getApplicationContext());
@@ -69,6 +76,7 @@ public class DownloadDatabaseHelper extends SQLiteOpenHelper {
         String query = "SELECT ts,xval,yval,zval FROM " + tableName + " order by ts desc limit 10";
 
         Cursor cursor = sqliteDataBase.rawQuery(query, null);
+        Log.i("DownloadDBHelper","Database: "+sqliteDataBase);
 
         if (cursor.moveToLast()) {
             do {
