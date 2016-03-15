@@ -3,9 +3,12 @@ package db;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.os.Environment;
 
+import java.io.File;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Date;
@@ -17,59 +20,55 @@ import cse535.mobilecomputing.assignment2.Record;
 /**
  * Created by Nikhil on 2/27/16.
  */
-public class DatabaseHelper extends SQLiteOpenHelper {
+public class DownloadDatabaseHelper extends SQLiteOpenHelper {
 
-    private static DatabaseHelper sInstance;
+    private static DownloadDatabaseHelper sInstance;
     private static final int DATABASE_VERSION = 1;
-    public static final String DATABASE_NAME = "g34_1.db";
+    private static final String DATABASE_NAME = DatabaseHelper.DATABASE_NAME;
+    public final static String DATABASE_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getPath();
+    private static SQLiteDatabase sqliteDataBase;
     static String tableName = null;
 
-    synchronized public static DatabaseHelper getInstance(Context context) {
+    synchronized public static DownloadDatabaseHelper getInstance(Context context) {
 
         // Use the application context, which will ensure that you
         // don't accidentally leak an Activity's context.
         // See this article for more information: http://bit.ly/6LRzfx
         tableName = MainActivity.getStoredTableName(context);
-        if(tableName==null)
+        boolean dbExists = checkDataBase();
+        if(!dbExists || tableName==null)
             return null;
         if (sInstance == null) {
-            sInstance = new DatabaseHelper(context.getApplicationContext());
+            sInstance = new DownloadDatabaseHelper(context.getApplicationContext());
         }
         return sInstance;
     }
 
 
-    public DatabaseHelper(Context context) {
+    public DownloadDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        openDataBase();
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE " + tableName + " (ts timestamp, xval float, yval float, zval float);");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + tableName);
     }
 
-    public void addRecord(Record record) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put("ts", record.timestamp);
-        values.put("xval", record.xVal);
-        values.put("yval", record.yVal);
-        values.put("zval", record.zVal);
-
-        db.insert(tableName, null, values);
+    private void openDataBase() throws SQLException {
+        //Open the database
+        String myPath = DATABASE_PATH + DATABASE_NAME;
+        sqliteDataBase = SQLiteDatabase.openDatabase(myPath, null, SQLiteDatabase.OPEN_READWRITE);
     }
 
     public List<Record> getMostRecentRecords() {
         List<Record> recentRecordList = new ArrayList<Record>();
         String query = "SELECT ts,xval,yval,zval FROM " + tableName + " order by ts desc limit 10";
 
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(query, null);
+        Cursor cursor = sqliteDataBase.rawQuery(query, null);
 
         if (cursor.moveToLast()) {
             do {
@@ -81,15 +80,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return recentRecordList;
     }
 
-    static public int getTimeStamp() {
-        Date date = new Date();
-        // getTime() returns current time in milliseconds
-        long time = date.getTime();
-        // Passed the milliseconds to constructor of Timestamp class
-        Timestamp ts = new Timestamp(time);
-        int ts_int = (int) ts.getTime();
-        return ts_int;
-
+    private static boolean checkDataBase(){
+        File databaseFile = new File(DATABASE_PATH + DATABASE_NAME);
+        return databaseFile.exists();
     }
 
 }

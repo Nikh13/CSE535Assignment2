@@ -137,6 +137,20 @@ public class GraphView extends View {
         }
     }
 
+    public void setLabels(int xLabelCount, int yLabelCount){
+        this.horlabels = new String[xLabelCount];
+        this.verlabels = new String[yLabelCount];
+        for(int i=0;i<xLabelCount;i++){
+            horlabels[i] = Integer.toString(i);
+        }
+        float sections = (getMax()-getMin())/yLabelCount;
+        float label = getMin();
+        for(int i=0;i<yLabelCount;i++){
+            label+=sections;
+            verlabels[i] = Float.toString(label);
+        }
+    }
+
     private float getMax() {
         float largest = Integer.MIN_VALUE;
         for(float[] values: valueList) {
@@ -144,7 +158,6 @@ public class GraphView extends View {
                 if (values[i] > largest)
                     largest = values[i];
         }
-        //largest = 3000;
         return largest;
     }
 
@@ -155,7 +168,6 @@ public class GraphView extends View {
                 if (values[i] < smallest)
                     smallest = values[i];
         }
-        //smallest = 0;
         return smallest;
     }
 }

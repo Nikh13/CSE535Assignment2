@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
-import android.os.Environment;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -21,10 +20,7 @@ import android.widget.Toast;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.KeyManagementException;
@@ -59,8 +55,9 @@ public class MainActivity extends AppCompatActivity {
     private Button runButton;
     private Button submitButton;
     private Button uploadButton;
+    private Button downloadActivityButton;
     private static DatabaseHelper dbHelper;
-    private GraphView xGraph;
+    private GraphView graphView;
     private UploadDatabase uploadDatabaseTask;
 
     List<float[]> valueList;
@@ -74,7 +71,8 @@ public class MainActivity extends AppCompatActivity {
     Timer timer;
     boolean running = false;
 
-    private static final String sURL = "https://impact.asu.edu/Appenstance/UploadToServerGPS.php";
+    private static final String sURLBase = "https://impact.asu.edu/Appenstance/";
+    private static final String sURLUpload = sURLBase + "UploadToServerGPS.php";
 
 
     @Override
@@ -94,17 +92,21 @@ public class MainActivity extends AppCompatActivity {
         runButton = (Button) findViewById(R.id.run_button);
         submitButton = (Button) findViewById(R.id.submitInputBtn);
         uploadButton = (Button) findViewById(R.id.upload_btn);
+        downloadActivityButton = (Button) findViewById(R.id.download_activity_btn);
         graphLayout.setVisibility(View.GONE);
         inputLayout.setVisibility(View.VISIBLE);
 
         emptyValueList = new ArrayList<float[]>();
         emptyValueList.add(new float[0]);
 
-        xGraph = new GraphView(getApplicationContext(), emptyValueList, "X axis", null, null, GraphView.LINE);
+        graphView = new GraphView(getApplicationContext(), emptyValueList, "Accelerometer Graph", null, null, GraphView.LINE);
+        graphView.setLabels(10, 0);
+        graphView.invalidate();
+        graphView.setBackgroundColor(getResources().getColor(android.R.color.black));
 
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 8f);
-        xGraph.setLayoutParams(params);
-        graphLayout.addView(xGraph);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 7f);
+        graphView.setLayoutParams(params);
+        graphLayout.addView(graphView);
 
         submitButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -158,8 +160,17 @@ public class MainActivity extends AppCompatActivity {
         uploadButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                UploadDatabase task = new UploadDatabase();
-                task.execute();
+                uploadDatabaseTask = new UploadDatabase();
+                uploadDatabaseTask.execute();
+            }
+        });
+        downloadActivityButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stopTimer();
+                clearGraph();
+                Intent i = new Intent(MainActivity.this, DownloadDatabaseActivity.class);
+                startActivity(i);
             }
         });
     }
@@ -209,18 +220,20 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void refreshGraphValues() {
-        xGraph.setValueList(valueList);
-        xGraph.invalidate();
+        graphView.setValueList(valueList);
+        graphView.setLabels(10, 4);
+        graphView.invalidate();
     }
 
     private void clearGraph() {
-        xGraph.setValueList(emptyValueList);
-        xGraph.invalidate();
+        graphView.setValueList(emptyValueList);
+        graphView.setLabels(10,0);
+        graphView.invalidate();
     }
 
     private void extractMostRecentAxisValues() {
         List<Record> recordList = getMostRecentRecords();
-        Log.i("MainActivity", "list: "+recordList);
+        Log.i("MainActivity", "list: " + recordList);
         if (recordList != null & recordList.size() == 10) {
             Log.i("MainActivity", "New Set");
             int i = 0;
@@ -243,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
         if (dbHelper != null) {
             recordList = dbHelper.getMostRecentRecords();
         }
-        Log.i("MainActivity", "db: "+dbHelper+" list: "+recordList);
+        Log.i("MainActivity", "db: " + dbHelper + " list: " + recordList);
         return recordList;
     }
 
@@ -274,10 +287,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private class UploadDatabase extends AsyncTask<Void, Void, String>{
+    private class UploadDatabase extends AsyncTask<Void, Void, String> {
 
         Context context = MainActivity.this;
-        File db = context.getDatabasePath(getStoredTableName(context));
+        File db = context.getDatabasePath(DatabaseHelper.DATABASE_NAME);
         String fileName = db.getPath();
         InputStream input = null;
         DataOutputStream output = null;
@@ -293,7 +306,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         protected String doInBackground(Void... params) {
 
-            TrustManager[] trustAllCerts = new TrustManager[] { new X509TrustManager() {
+            TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
                 public X509Certificate[] getAcceptedIssuers() {
                     return null;
                 }
@@ -307,7 +320,7 @@ public class MainActivity extends AppCompatActivity {
                 public void checkServerTrusted(X509Certificate[] arg0, String arg1) throws CertificateException {
                     // Not implemented
                 }
-            } };
+            }};
 
             try {
                 SSLContext sc = SSLContext.getInstance("TLS");
@@ -321,7 +334,7 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
             try {
-                URL url = new URL(sURL);
+                URL url = new URL(sURLUpload);
                 connection = (HttpsURLConnection) url.openConnection();
                 connection.setDoInput(true); // Allow Inputs
                 connection.setDoOutput(true); // Allow Outputs
@@ -341,7 +354,7 @@ public class MainActivity extends AppCompatActivity {
                 output.writeBytes(twoHyphens + boundary + lineEnd);
                 output.writeBytes("Content-Disposition: form-data; name=uploaded_file;" + "filename="
                         + fileName + " " + lineEnd);
-                Log.i("UploadDB","Upload Filename: "+fileName);
+                Log.i("UploadDB", "Upload Filename: " + fileName);
                 output.writeBytes(lineEnd);
 
                 // create a buffer of  maximum size
@@ -374,7 +387,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 response = connection.getResponseMessage();
-                Log.i("UploadDb","response: "+response);
+                Log.i("UploadDb", "response: " + response);
 
                 //close the streams //
                 input.close();
@@ -402,8 +415,8 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(String result) {
-                Log.i("UploadDb","Upload message: "+result);
-                Toast.makeText(context,"Upload Result", Toast.LENGTH_SHORT).show();
+            Log.i("UploadDb", "Upload message: " + result);
+            Toast.makeText(context, "Upload Result: "+result, Toast.LENGTH_SHORT).show();
         }
     }
 

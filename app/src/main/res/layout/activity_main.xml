@@ -91,6 +91,28 @@
         android:weightSum="10">
 
         <RelativeLayout
+            android:id="@+id/server_layout"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_weight="2">
+
+            <Button
+                android:id="@+id/upload_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:text="Upload Database" />
+            <Button
+                android:id="@+id/download_activity_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/upload_btn"
+                android:layout_centerHorizontal="true"
+                android:text="Download Database Activity" />
+        </RelativeLayout>
+
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_gravity="center_horizontal"
@@ -109,20 +131,6 @@
                 android:layout_height="wrap_content"
                 android:layout_alignParentRight="true"
                 android:text="STOP" />
-        </RelativeLayout>
-
-        <RelativeLayout
-            android:id="@+id/server_layout"
-            android:layout_width="wrap_content"
-            android:layout_height="0dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_weight="1">
-
-            <Button
-                android:id="@+id/upload_btn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Upload Database" />
         </RelativeLayout>
     </LinearLayout>
 
